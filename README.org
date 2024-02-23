@@ -1,0 +1,8 @@
+#+title: jsonrpc.el - Temporary fork
+#+author: Daniel Pettersson
+#+language: en
+
+This is an temporary fork of jsonrpc and will live here until #68241
+has been merged or the issue is fixed in any other way.
+
+69241: https://debbugs.gnu.org/cgi/bugreport.cgi?bug=69241
