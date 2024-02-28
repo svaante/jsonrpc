@@ -757,10 +757,11 @@ With optional CLEANUP, kill any associated buffers."
                                 (setq message
                                       (plist-put message :jsonrpc-json
                                                  (buffer-string)))
-                                (process-put proc 'jsonrpc-mqueue
-                                             (nconc (process-get proc
-                                                                 'jsonrpc-mqueue)
-                                                    (list message)))))
+                                ;; Put new messages at the front of the queue,
+                                ;; this is correct as the order is reversed
+                                ;; before putting the timers on `timer-list'.
+                                (push message
+                                      (process-get proc 'jsonrpc-mqueue))))
                           (goto-char message-end)
                           (let ((inhibit-read-only t))
                             (delete-region (point-min) (point)))
@@ -779,7 +780,11 @@ With optional CLEANUP, kill any associated buffers."
           ;; non-locally (typically the reply to a request), so do
           ;; this all this processing in top-level loops timer.
           (cl-loop
-           with time = (timer-relative-time nil 0)
+           ;; `timer-activate' orders timers by time, which is an
+           ;; very expensive operation when jsonrpc-mqueue is large,
+           ;; therefore the time object is reused for each timer
+           ;; created.
+           with time = (current-time)
            for msg = (pop (process-get proc 'jsonrpc-mqueue)) while msg
            do (let ((timer (timer-create)))
                 (timer-set-time timer time)
@@ -788,13 +793,7 @@ With optional CLEANUP, kill any associated buffers."
                                       (with-temp-buffer
                                         (jsonrpc-connection-receive conn msg)))
                                     (list conn msg))
-                (setf (timer--triggered timer) nil)
-                ;; HACK: `timer-activate' is to slow for our purposes.
-                ;; `timer-activete' loops through all timers that
-                ;; should execute before inserting our callback.  It
-                ;; does not preserve the exact order of timers but it
-                ;; should be fine.
-                (setf timer-list (cons timer timer-list)))))))))
+                (timer-activate timer))))))))
 
 (defun jsonrpc--remove (conn id &optional deferred-spec)
   "Cancel CONN's continuations for ID, including its timer, if it exists.
